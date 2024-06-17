@@ -89,7 +89,7 @@ exports.generateImage = async (event) => {
   const body = JSON.stringify({
     taskType: 'TEXT_IMAGE',
     textToImageParams: {
-      text: `Generate a minimalist image for children depicting the word "${englishWord}". The image should be simple, colorful, and suitable for educational purposes.`,
+      text: `Create a minimalist illustration of "${englishWord}". The image should be simple and clean, focusing on the essential features that represent the "${englishWord}". Use a white background with colorful accents to highlight the "${englishWord}".`,
     },
     imageGenerationConfig: {
       numberOfImages: 1,
