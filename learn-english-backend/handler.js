@@ -1,0 +1,229 @@
+const AWS = require('aws-sdk');
+const dynamoDb = new AWS.DynamoDB.DocumentClient();
+const fs = require('fs');
+const stream = require('stream');
+
+exports.getWord = async (event) => {
+  const params = {
+    TableName: "Counter",
+    Key: { CounterID: "wordCount" }
+  };
+  
+  try {
+    const countResult = await dynamoDb.get(params).promise();
+    const randomId = Math.floor(Math.random() * countResult.Item.count) + 1;
+    const wordParams = {
+      TableName: "Palavras",
+      Key: { WordID: randomId }
+    };
+    const wordResult = await dynamoDb.get(wordParams).promise();
+    return {
+      statusCode: 200,
+      body: JSON.stringify(wordResult.Item)
+    };
+  } catch (error) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify(error)
+    };
+  }
+};
+
+exports.addWord = async (event) => {
+  console.log(event);
+  console.log(event.Payload);
+  const word = event.Payload;
+
+  // Increment the count and update the Counter table
+  const updateCounterParams = {
+    TableName: "Counter",
+    Key: { CounterID: "wordCount" },
+    UpdateExpression: "set countNumber = countNumber + :val",
+    ExpressionAttributeValues: { ":val": 1 },
+    ReturnValues: "UPDATED_NEW"
+  };
+  const updatedCounterData = await dynamoDb.update(updateCounterParams).promise();
+  const newWordID = updatedCounterData.Attributes.countNumber || 0; 
+
+  // Add the word to the Palavras table with the new WordID
+  const wordParams = {
+    TableName: "Palavras",
+    Item: {
+      ...word,
+      WordID: newWordID
+    }
+  };
+  await dynamoDb.put(wordParams).promise();
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ status: 'Word added successfully!' })
+  };
+};
+
+exports.generateImage = async (event) => {
+  console.log(event);
+
+  const englishWord = event.Payload.body.ingles;
+
+  const word = {
+    ...event.Payload.detail,
+    imagePath: 'imagePathTest'
+  }
+  return {
+    body: word
+  };
+};
+
+exports.generateImage = async (event) => {
+  console.log(event);
+
+  const englishWord = event.Payload.detail.ingles;
+
+  // Create an Amazon Bedrock Runtime client
+  const bedrockRuntime = new AWS.BedrockRuntime();
+
+  // Create an Amazon S3 client
+  const s3 = new AWS.S3();
+
+  const body = JSON.stringify({
+    taskType: 'TEXT_IMAGE',
+    textToImageParams: {
+      text: `Generate a minimalist image for children depicting the word "${englishWord}". The image should be simple, colorful, and suitable for educational purposes.`,
+    },
+    imageGenerationConfig: {
+      numberOfImages: 1,
+      height: 1024,
+      width: 1024,
+      cfgScale: 8.0,
+      seed: 0,
+    },
+  });
+
+  const response = await bedrockRuntime.invokeModel({
+    body,
+    modelId: 'amazon.titan-image-generator-v1',
+    accept: 'application/json',
+    contentType: 'application/json',
+  }).promise();
+
+  const responseBody = JSON.parse(response.body);
+
+  if (responseBody.error) {
+    throw new Error(`Image generation error. Error is ${responseBody.error}`);
+  }
+
+  const base64Image = responseBody.images[0];
+  const base64Bytes = Buffer.from(base64Image, 'base64');
+
+  // Create a readable stream from the image data
+  const imageStream = new stream.Readable();
+  imageStream._read = () => {}; // Required to create a readable stream
+  imageStream.push(base64Bytes);
+  imageStream.push(null); // Signals the end of the stream
+
+  // Define the parameters for the S3 upload
+  const s3Params = {
+    Bucket: 'learn-english-images',
+    Key: `${englishWord}.png`, // Replace with the desired file name in S3
+    Body: imageStream,
+    ContentType: 'image/png',
+  };
+
+  // Upload the image file to S3
+  const s3Data = await s3.upload(s3Params).promise();
+  const imageUrl = s3Data.Location; // Get the S3 object URL
+
+  const word = {
+    ...event.Payload.detail,
+    imagePath: imageUrl,
+  };
+
+  return {
+    body: word,
+  };
+};
+
+
+exports.generateAudio = async (event) => {
+  console.log(event);
+
+  const portugueseWord = event.Payload.body.portugues;
+  const englishWord = event.Payload.body.ingles;
+
+  // Create an Amazon Polly client
+  const polly = new AWS.Polly();
+
+  // Create an Amazon S3 client
+  const s3 = new AWS.S3();
+
+  // Define the parameters for the synthesizeSpeech operation for Portuguese word
+  const portugueseParams = {
+    Text: portugueseWord,
+    OutputFormat: 'mp3',
+    VoiceId: 'Camila', // Change to 'Camila' for Brazilian Portuguese
+  };
+
+  // Call the synthesizeSpeech method for Portuguese word
+  const portugueseData = await polly.synthesizeSpeech(portugueseParams).promise();
+
+  // Create a readable stream from the Portuguese audio data
+  const portugueseAudioStream = new stream.Readable();
+  portugueseAudioStream._read = () => {}; // Required to create a readable stream
+  portugueseAudioStream.push(portugueseData.AudioStream);
+  portugueseAudioStream.push(null); // Signals the end of the stream
+
+  const portuguesePassThrough = new stream.PassThrough();
+  portugueseAudioStream.pipe(portuguesePassThrough);
+
+  // Define the parameters for the S3 upload for Portuguese audio
+  const portugueseS3Params = {
+    Bucket: 'learn-english-audios', // Replace with your S3 bucket name
+    Key: portugueseWord + '.mp3', // Replace with the desired file name in S3
+    Body: portuguesePassThrough,
+  };
+
+  // Upload the Portuguese audio file to S3
+  const portugueseS3Data = await s3.upload(portugueseS3Params).promise();
+  const portugueseAudioPath = portugueseS3Data.Key;
+
+  // Define the parameters for the synthesizeSpeech operation for English word
+  const englishParams = {
+    Text: englishWord,
+    OutputFormat: 'mp3',
+    VoiceId: 'Joanna',
+  };
+
+  // Call the synthesizeSpeech method for English word
+  const englishData = await polly.synthesizeSpeech(englishParams).promise();
+
+  // Create a readable stream from the Portuguese audio data
+  const englishAudioStream = new stream.Readable();
+  englishAudioStream._read = () => {}; // Required to create a readable stream
+  englishAudioStream.push(englishData.AudioStream);
+  englishAudioStream.push(null); // Signals the end of the stream
+
+  const englishPassThrough = new stream.PassThrough();
+  englishAudioStream.pipe(englishPassThrough);
+
+  // Define the parameters for the S3 upload for English audio
+  const englishS3Params = {
+    Bucket: 'learn-english-audios', // Replace with your S3 bucket name
+    Key: englishWord + '.mp3', // Replace with the desired file name in S3
+    Body: englishPassThrough,
+  };
+
+  // Upload the English audio file to S3
+  const englishS3Data = await s3.upload(englishS3Params).promise();
+  const englishAudioPath = englishS3Data.Key;
+
+  const word = {
+    ...event.Payload.body,
+    englishAudioPath,
+    portugueseAudioPath,
+  };
+
+  return {
+    body: word
+  };
+};

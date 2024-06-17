@@ -1,0 +1,239 @@
+org: evandro
+app: learn-english-with-serverless-genai
+service: learn-english-backend
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+
+functions:
+  generateWords:
+    handler: words_generator.handler
+    iamRoleStatements:
+      - Effect: "Allow"
+        Action: "bedrock:InvokeModel"
+        Resource: "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-haiku-20240307-v1:0"
+      - Effect: Allow
+        Action:
+          - events:PutEvents
+        Resource: "*" 
+
+  getWord:
+    handler: handler.getWord
+    events:
+      - http:
+          path: word
+          method: get
+          cors: true
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:Scan
+          - dynamodb:GetItem
+          - dynamodb:PutItem
+          - dynamodb:UpdateItem
+        Resource:
+          - "arn:aws:dynamodb:us-east-1:*:table/Palavras"
+          - "arn:aws:dynamodb:us-east-1:*:table/Counter"
+  
+  addWord:
+    handler: handler.addWord
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:Scan
+          - dynamodb:GetItem
+          - dynamodb:PutItem
+          - dynamodb:UpdateItem
+        Resource:
+          - "arn:aws:dynamodb:us-east-1:*:table/Palavras"
+          - "arn:aws:dynamodb:us-east-1:*:table/Counter"
+        
+  generateImage:
+    handler: handler.generateImage
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - bedrock:InvokeModel
+        Resource: "*"
+      - Effect: Allow
+        Action:
+          - s3:PutObject
+          - s3:GetObject
+        Resource:
+          - "arn:aws:s3:::learn-english-images/*"
+
+  generateAudio:
+    handler: handler.generateAudio
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - polly:SynthesizeSpeech
+        Resource: "*"
+      - Effect: Allow
+        Action:
+          - s3:PutObject
+          - s3:GetObject
+        Resource:
+          - "arn:aws:s3:::learn-english-audios/*"
+
+stepFunctions:
+  stateMachines:
+    wordEnrichment:
+      # Comment: "Word enrichment with audio and image and saving in DynamoDB"
+      definition:
+        StartAt: ImageGenerator
+        States:
+          ImageGenerator:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [GenerateImageLambdaFunction, Arn]
+            OutputPath: $
+            Parameters:
+              Payload.$: $
+            Retry:
+              - ErrorEquals:
+                  - Lambda.ServiceException
+                  - Lambda.AWSLambdaException
+                  - Lambda.SdkClientException
+                  - Lambda.TooManyRequestsException
+                IntervalSeconds: 1
+                MaxAttempts: 3
+                BackoffRate: 2
+            Next: AudioGenerator
+          AudioGenerator:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [GenerateAudioLambdaFunction, Arn]
+            OutputPath: $
+            Parameters:
+              Payload.$: $
+            Retry:
+              - ErrorEquals:
+                  - Lambda.ServiceException
+                  - Lambda.AWSLambdaException
+                  - Lambda.SdkClientException
+                  - Lambda.TooManyRequestsException
+                IntervalSeconds: 1
+                MaxAttempts: 3
+                BackoffRate: 2
+            Next: WordSave
+          WordSave:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [AddWordLambdaFunction, Arn]
+            OutputPath: $
+            Parameters:
+              Payload.$: $.body
+            Retry:
+              - ErrorEquals:
+                  - Lambda.ServiceException
+                  - Lambda.AWSLambdaException
+                  - Lambda.SdkClientException
+                  - Lambda.TooManyRequestsException
+                IntervalSeconds: 1
+                MaxAttempts: 3
+                BackoffRate: 2
+            End: true
+            
+resources:
+  Resources:
+    PalavrasTable:
+      Type: 'AWS::DynamoDB::Table'
+      Properties:
+        TableName: Palavras
+        AttributeDefinitions:
+          - AttributeName: WordID
+            AttributeType: N
+        KeySchema:
+          - AttributeName: WordID
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+    CounterTable:
+      Type: 'AWS::DynamoDB::Table'
+      Properties:
+        TableName: Counter
+        AttributeDefinitions:
+          - AttributeName: CounterID
+            AttributeType: S
+        KeySchema:
+          - AttributeName: CounterID
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+    StepFunctionExecutionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - states.amazonaws.com
+                  - events.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: stepFunctionExecutionPolicy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - "states:StartExecution"
+                  Resource: "*"
+
+    StepFunctionsRule:
+      Type: AWS::Events::Rule
+      Properties:
+        EventPattern:
+          source:
+            - my-application
+          detail-type:
+            - word-generated
+        State: "ENABLED"
+        Targets:
+          - Arn:
+              Ref: WordEnrichmentStepFunctionsStateMachine
+            Id: "TargetFunctionV1"
+            RoleArn:
+              Fn::GetAtt: [StepFunctionExecutionRole, Arn]
+
+    AudiosS3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: learn-english-audios
+        AccessControl: Private
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+        VersioningConfiguration:
+          Status: Suspended # Set to 'Enabled' if you want versioning enabled
+
+    ImagesS3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: learn-english-images
+        AccessControl: Private
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+        VersioningConfiguration:
+          Status: Suspended # Set to 'Enabled' if you want versioning enabled
+
+plugins:
+- serverless-iam-roles-per-function
+- serverless-step-functions
