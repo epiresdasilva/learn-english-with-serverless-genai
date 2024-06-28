@@ -1,0 +1,9 @@
+<div *ngIf="wordData">
+  <button (click)="playAudio(showEnglish ? wordData?.englishAudioPath : wordData?.portugueseAudioPath)">
+    Play {{ showEnglish ? 'English' : 'Portuguese' }} Audio
+  </button>
+  <h1>{{ showEnglish ? wordData?.ingles : wordData?.portugues }}</h1>
+  <img [src]="wordData?.imagePath" (click)="toggleLanguage()" alt="Word Image">
+  <br>
+  <button (click)="fetchWordData()">Próximo</button>
+</div>
