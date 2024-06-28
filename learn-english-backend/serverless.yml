@@ -11,6 +11,7 @@ provider:
 functions:
   generateWords:
     handler: words_generator.handler
+    timeout: 600
     iamRoleStatements:
       - Effect: "Allow"
         Action: "bedrock:InvokeModel"

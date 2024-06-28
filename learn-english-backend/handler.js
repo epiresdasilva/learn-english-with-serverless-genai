@@ -97,8 +97,8 @@ exports.generateImage = async (event) => {
     },
     imageGenerationConfig: {
       numberOfImages: 1,
-      height: 1024,
-      width: 1024,
+      height: 512,
+      width: 512,
       cfgScale: 8.0,
       seed: 0,
     },

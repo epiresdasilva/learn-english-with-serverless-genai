@@ -4,7 +4,7 @@ const { TextDecoder } = require('util');
 
 const AWS_REGION = "us-east-1";
 const MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0";
-const PROMPT = "Gere uma lista de 20 substantivos comuns em português, junto com suas traduções em inglês, em formato JSON. Não precisa trazer mais nada de texto além do próprio JSON. Exemplo de retorno: {substantivos: [{ 'português': 'mesa', 'inglês': 'table' },{ 'português': 'cadeira', 'inglês': 'chair' }]}";
+const PROMPT = "Gere uma lista de 200 substantivos comuns em português, junto com suas traduções em inglês, em formato JSON. Não precisa trazer mais nada de texto além do próprio JSON. Exemplo de retorno: {substantivos: [{ 'português': 'mesa', 'inglês': 'table' },{ 'português': 'cadeira', 'inglês': 'chair' }]}";
 
 exports.handler = async (event) => {
     console.log("Invocando o modelo Bedrock para geração de substantivos e traduções...");
@@ -16,7 +16,7 @@ exports.handler = async (event) => {
     // Preparar o payload para o modelo
     const payload = {
         anthropic_version: "bedrock-2023-05-31",
-        max_tokens: 500,  // Ajuste conforme necessário para garantir a geração completa
+        max_tokens: 4096,  // Ajuste conforme necessário para garantir a geração completa
         messages: [{ role: "user", content: [{ type: "text", text: PROMPT }] }],
     };
 
@@ -37,6 +37,7 @@ exports.handler = async (event) => {
         console.log(`Número de tokens de entrada: ${responseBody.usage.input_tokens}`);
         console.log(`Número de tokens de saída: ${responseBody.usage.output_tokens}`);
 
+        console.log(responses[0].text);
         const palavras = JSON.parse(responses[0].text);
         console.log(palavras);
 
