@@ -234,6 +234,96 @@ resources:
         VersioningConfiguration:
           Status: Suspended # Set to 'Enabled' if you want versioning enabled
 
+    AudiosCloudFrontDistribution:
+      Type: AWS::CloudFront::Distribution
+      Properties:
+        DistributionConfig:
+          Enabled: true
+          Origins:
+            - Id: S3-learn-english-audios
+              DomainName: learn-english-audios.s3.amazonaws.com
+              S3OriginConfig:
+                OriginAccessIdentity: !Join ['', ['origin-access-identity/cloudfront/', !Ref AudiosCloudFrontOriginAccessIdentity]]
+          DefaultCacheBehavior:
+            TargetOriginId: S3-learn-english-audios
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: 
+              - GET
+              - HEAD
+            CachedMethods: 
+              - GET
+              - HEAD
+            ForwardedValues:
+              QueryString: false
+              Cookies:
+                Forward: none
+          ViewerCertificate:
+            CloudFrontDefaultCertificate: true
+
+    ImagesCloudFrontDistribution:
+      Type: AWS::CloudFront::Distribution
+      Properties:
+        DistributionConfig:
+          Enabled: true
+          Origins:
+            - Id: S3-learn-english-images
+              DomainName: learn-english-images.s3.amazonaws.com
+              S3OriginConfig:
+                OriginAccessIdentity: !Join ['', ['origin-access-identity/cloudfront/', !Ref ImagesCloudFrontOriginAccessIdentity]]
+          DefaultCacheBehavior:
+            TargetOriginId: S3-learn-english-images
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: 
+              - GET
+              - HEAD
+            CachedMethods: 
+              - GET
+              - HEAD
+            ForwardedValues:
+              QueryString: false
+              Cookies:
+                Forward: none
+          ViewerCertificate:
+            CloudFrontDefaultCertificate: true
+
+    AudiosCloudFrontOriginAccessIdentity:
+      Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+      Properties:
+        CloudFrontOriginAccessIdentityConfig:
+          Comment: access-learn-english-audios.s3.amazonaws.com
+
+    ImagesCloudFrontOriginAccessIdentity:
+      Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+      Properties:
+        CloudFrontOriginAccessIdentityConfig:
+          Comment: access-learn-english-images.s3.amazonaws.com
+
+    AudiosBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket:
+          Ref: AudiosS3Bucket
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                CanonicalUser: !GetAtt AudiosCloudFrontOriginAccessIdentity.S3CanonicalUserId
+              Action: s3:GetObject
+              Resource: arn:aws:s3:::learn-english-audios/*
+
+    ImagesBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket:
+          Ref: ImagesS3Bucket
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                CanonicalUser: !GetAtt ImagesCloudFrontOriginAccessIdentity.S3CanonicalUserId
+              Action: s3:GetObject
+              Resource: arn:aws:s3:::learn-english-images/*
+                        
 plugins:
 - serverless-iam-roles-per-function
 - serverless-step-functions

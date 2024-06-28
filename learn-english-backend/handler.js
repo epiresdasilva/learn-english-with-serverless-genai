@@ -11,7 +11,7 @@ exports.getWord = async (event) => {
   
   try {
     const countResult = await dynamoDb.get(params).promise();
-    const randomId = Math.floor(Math.random() * countResult.Item.count) + 1;
+    const randomId = Math.floor(Math.random() * countResult.Item.countNumber) + 1;
     const wordParams = {
       TableName: "Palavras",
       Key: { WordID: randomId }
@@ -19,6 +19,10 @@ exports.getWord = async (event) => {
     const wordResult = await dynamoDb.get(wordParams).promise();
     return {
       statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent',
+      },
       body: JSON.stringify(wordResult.Item)
     };
   } catch (error) {
