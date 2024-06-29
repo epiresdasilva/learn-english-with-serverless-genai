@@ -1,9 +1,17 @@
-<div *ngIf="wordData">
-  <button (click)="playAudio(showEnglish ? wordData?.englishAudioPath : wordData?.portugueseAudioPath)">
-    Play {{ showEnglish ? 'English' : 'Portuguese' }} Audio
-  </button>
-  <h1>{{ showEnglish ? wordData?.ingles : wordData?.portugues }}</h1>
-  <img [src]="wordData?.imagePath" (click)="toggleLanguage()" alt="Word Image">
-  <br>
-  <button (click)="fetchWordData()">Próximo</button>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" integrity="sha512-..." crossorigin="anonymous" />
+
+<div class="container">
+  <header>
+    <img src="logo.png" alt="Your Logo" class="logo">
+  </header>
+
+  <div *ngIf="wordData" class="card">
+    <button (click)="playAudio(showEnglish ? wordData?.englishAudioPath : wordData?.portugueseAudioPath)" class="audio-button">
+      <i class="fas fa-volume-up"></i>
+      <span class="sr-only">Play {{ showEnglish ? 'English' : 'Portuguese' }} Audio</span>
+    </button>
+    <h1>{{ showEnglish ? wordData?.ingles : wordData?.portugues }}</h1>
+    <img [src]="wordData?.imagePath" (click)="toggleLanguage()" alt="Word Image" class="word-image">
+    <button (click)="fetchWordData()" class="next-button">Next</button>
+  </div>
 </div>
