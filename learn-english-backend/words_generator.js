@@ -4,10 +4,11 @@ const { TextDecoder } = require('util');
 
 const AWS_REGION = "us-east-1";
 const MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0";
-const PROMPT = "Gere uma lista de 200 substantivos comuns em português, junto com suas traduções em inglês, em formato JSON. Não precisa trazer mais nada de texto além do próprio JSON. Exemplo de retorno: {substantivos: [{ 'português': 'mesa', 'inglês': 'table' },{ 'português': 'cadeira', 'inglês': 'chair' }]}";
 
 exports.handler = async (event) => {
     console.log("Invocando o modelo Bedrock para geração de substantivos e traduções...");
+
+    const PROMPT = `Gere uma lista de ${event.prompt} em português, junto com suas traduções em inglês, em formato JSON. Não precisa trazer mais nada de texto além do próprio JSON. Exemplo de retorno: {substantivos: [{ 'português': 'mesa', 'inglês': 'table' },{ 'português': 'cadeira', 'inglês': 'chair' }]}`;
 
     // Criar uma nova instância do cliente Bedrock
     const client = new BedrockRuntimeClient({ region: AWS_REGION });
