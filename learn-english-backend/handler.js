@@ -36,7 +36,12 @@ exports.getWord = async (event) => {
 exports.addWord = async (event) => {
   console.log(event);
   console.log(event.Payload);
-  const word = event.Payload;
+  
+  const payload = event.Payload;
+  const word = {
+    ...payload[0].body,
+    ...payload[1].body
+  };
 
   // Increment the count and update the Counter table
   const updateCounterParams = {
@@ -68,21 +73,8 @@ exports.addWord = async (event) => {
 exports.generateImage = async (event) => {
   console.log(event);
 
-  const englishWord = event.Payload.body.ingles;
-
-  const word = {
-    ...event.Payload.detail,
-    imagePath: 'imagePathTest'
-  }
-  return {
-    body: word
-  };
-};
-
-exports.generateImage = async (event) => {
-  console.log(event);
-
-  const englishWord = event.Payload.detail.ingles;
+  const detail = event.Payload.detail;
+  const englishWord = detail.ingles;
 
   // Create an Amazon Bedrock Runtime client
   const bedrockRuntime = new AWS.BedrockRuntime();
@@ -93,13 +85,13 @@ exports.generateImage = async (event) => {
   const body = JSON.stringify({
     taskType: 'TEXT_IMAGE',
     textToImageParams: {
-      text: `Create a minimalist illustration of "${englishWord}". The image should be simple and clean, focusing on the essential features that represent the "${englishWord}". Use a white background with colorful accents to highlight the representation of the word "${englishWord}". Don't create any text in the image.`,
+      text: `Create a minimalist illustration representing "${englishWord}". The image should be simple and clean, focusing solely on the essential visual elements that symbolize the concept of "${englishWord}". Use a plain white background with colorful accents to highlight the visual representation. Do not include any text or words in the image.`,
     },
     imageGenerationConfig: {
       numberOfImages: 1,
       height: 512,
       width: 512,
-      cfgScale: 8.0,
+      cfgScale: 5.0,
       seed: 0,
     },
   });
@@ -139,7 +131,7 @@ exports.generateImage = async (event) => {
   const imageUrl = s3Data.Location; // Get the S3 object URL
 
   const word = {
-    ...event.Payload.detail,
+    ...detail,
     imagePath: imageUrl,
   };
 
@@ -152,8 +144,9 @@ exports.generateImage = async (event) => {
 exports.generateAudio = async (event) => {
   console.log(event);
 
-  const portugueseWord = event.Payload.body.portugues;
-  const englishWord = event.Payload.body.ingles;
+  const detail = event.Payload.detail;
+  const portugueseWord = detail.portugues;
+  const englishWord = detail.ingles;
 
   // Create an Amazon Polly client
   const polly = new AWS.Polly();
@@ -222,7 +215,7 @@ exports.generateAudio = async (event) => {
   const englishAudioPath = englishS3Data.Key;
 
   const word = {
-    ...event.Payload.body,
+    ...detail,
     englishAudioPath,
     portugueseAudioPath,
   };
